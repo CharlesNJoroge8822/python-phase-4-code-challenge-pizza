@@ -1,7 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
 from sqlalchemy.orm import validates
-from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy_serializer import SerializerMixin
 
 metadata = MetaData(
@@ -17,12 +16,27 @@ class Restaurant(db.Model, SerializerMixin):
     __tablename__ = "restaurants"
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    address = db.Column(db.String)
+    name = db.Column(db.String, nullable=False)
+    address = db.Column(db.String, nullable=False)
 
-    # add relationship
+    # Relationship with RestaurantPizza
+    restaurant_pizzas = db.relationship("RestaurantPizza", back_populates="restaurant", cascade="all, delete-orphan")
 
-    # add serialization rules
+    # Serialization rules
+    serialize_rules = ("-restaurant_pizzas.restaurant",)
+
+    # Validations
+    @validates("name")
+    def validate_name(self, key, value):
+        if not value or len(value.strip()) < 3:
+            raise ValueError("Restaurant name must be at least 3 characters long.")
+        return value.strip()
+
+    @validates("address")
+    def validate_address(self, key, value):
+        if not value or len(value.strip()) < 5:
+            raise ValueError("Address must be at least 5 characters long.")
+        return value.strip()
 
     def __repr__(self):
         return f"<Restaurant {self.name}>"
@@ -32,12 +46,27 @@ class Pizza(db.Model, SerializerMixin):
     __tablename__ = "pizzas"
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    ingredients = db.Column(db.String)
+    name = db.Column(db.String, nullable=False)
+    ingredients = db.Column(db.String, nullable=False)
 
-    # add relationship
+    # Relationship with RestaurantPizza
+    restaurant_pizzas = db.relationship("RestaurantPizza", back_populates="pizza")
 
-    # add serialization rules
+    # Serialization rules
+    serialize_rules = ("-restaurant_pizzas.pizza",)
+
+    # Validations
+    @validates("name")
+    def validate_name(self, key, value):
+        if not value or len(value.strip()) < 4:
+            raise ValueError("Pizza name must be at least 4 characters long.")
+        return value.strip()
+
+    @validates("ingredients")
+    def validate_ingredients(self, key, value):
+        if not value or len(value.strip()) < 4:
+            raise ValueError("Ingredients must be at least 4 characters long.")
+        return value.strip()
 
     def __repr__(self):
         return f"<Pizza {self.name}, {self.ingredients}>"
@@ -49,11 +78,23 @@ class RestaurantPizza(db.Model, SerializerMixin):
     id = db.Column(db.Integer, primary_key=True)
     price = db.Column(db.Integer, nullable=False)
 
-    # add relationships
+    # Foreign keys
+    restaurant_id = db.Column(db.Integer, db.ForeignKey("restaurants.id"), nullable=False)
+    pizza_id = db.Column(db.Integer, db.ForeignKey("pizzas.id"), nullable=False)
 
-    # add serialization rules
+    # Relationships
+    restaurant = db.relationship("Restaurant", back_populates="restaurant_pizzas")
+    pizza = db.relationship("Pizza", back_populates="restaurant_pizzas")
 
-    # add validation
+    # Serialization rules
+    serialize_rules = ("-restaurant.restaurant_pizzas", "-pizza.restaurant_pizzas")
+
+    # Validation
+    @validates("price")
+    def validate_price(self, key, value):
+        if value is None or not (1 <= value <= 30):
+            raise ValueError("Price must be between 1 and 30.")
+        return value
 
     def __repr__(self):
         return f"<RestaurantPizza ${self.price}>"
